@@ -1,2 +1,8 @@
 server:
   port: 8001
+
+# Eureka Client config -> Default to localhost:8761 even not config
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
