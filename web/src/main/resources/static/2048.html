@@ -90,9 +90,13 @@
             font-size: 55px;
             font-weight: bold;
             border-radius: 5px;
-            transition: all 0.15s ease-in-out;
+            transition: left 0.15s ease-in-out, top 0.15s ease-in-out, transform 0.15s ease-in-out;
             width: 106.25px;
             height: 106.25px;
+        }
+
+        .tile-merged {
+            animation: merge 0.15s ease-in-out;
         }
 
         .tile-2 { background: #eee4da; color: #776e65; }
@@ -170,6 +174,12 @@
         @keyframes pop {
             0% { transform: scale(0); }
             50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes merge {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
 
@@ -444,29 +454,88 @@
             }
 
             renderGrid() {
-                // Remove old tiles
+                const existingTiles = new Map();
                 const oldTiles = this.gameBoard.querySelectorAll('.tile');
-                oldTiles.forEach(tile => tile.remove());
+                
+                // Track existing tiles by their position
+                oldTiles.forEach(tile => {
+                    const key = `${tile.dataset.row}-${tile.dataset.col}`;
+                    existingTiles.set(key, tile);
+                });
 
-                // Add new tiles
+                const tilesToRemove = new Set(oldTiles);
+                const newTiles = [];
+
+                // Update or create tiles
                 for (let i = 0; i < this.size; i++) {
                     for (let j = 0; j < this.size; j++) {
                         const value = this.grid[i][j];
                         if (value !== 0) {
-                            const tile = document.createElement('div');
-                            tile.className = `tile tile-${value > 2048 ? 'super' : value} tile-new`;
+                            const key = `${i}-${j}`;
+                            const left = `${15 + j * 121.25}px`;
+                            const top = `${15 + i * 121.25}px`;
+                            
+                            let tile = null;
+                            let isNew = false;
+                            let isMerged = false;
+
+                            // Check if a tile can be reused from a different position
+                            for (const [oldKey, oldTile] of existingTiles) {
+                                if (oldTile.textContent == value && !tilesToRemove.has(oldTile)) {
+                                    continue;
+                                }
+                                if (oldTile.textContent == value && oldKey !== key) {
+                                    tile = oldTile;
+                                    tilesToRemove.delete(tile);
+                                    break;
+                                }
+                            }
+
+                            // Check if tile exists at this position with same value
+                            if (!tile && existingTiles.has(key)) {
+                                const existingTile = existingTiles.get(key);
+                                if (existingTile.textContent == value) {
+                                    tile = existingTile;
+                                    tilesToRemove.delete(tile);
+                                } else {
+                                    // Value changed, this is a merge
+                                    tile = existingTile;
+                                    tilesToRemove.delete(tile);
+                                    isMerged = true;
+                                }
+                            }
+
+                            if (!tile) {
+                                // Create new tile
+                                tile = document.createElement('div');
+                                this.gameBoard.appendChild(tile);
+                                isNew = true;
+                                newTiles.push(tile);
+                            }
+
+                            // Update tile properties
+                            tile.className = `tile tile-${value > 2048 ? 'super' : value}`;
+                            if (isNew) tile.classList.add('tile-new');
+                            if (isMerged) tile.classList.add('tile-merged');
+                            
                             tile.textContent = value;
-                            tile.style.left = `${15 + j * 121.25}px`;
-                            tile.style.top = `${15 + i * 121.25}px`;
-                            this.gameBoard.appendChild(tile);
+                            tile.dataset.row = i;
+                            tile.dataset.col = j;
+                            tile.style.left = left;
+                            tile.style.top = top;
                         }
                     }
                 }
 
-                // Remove animation class after animation completes
+                // Remove tiles that are no longer on the grid
+                tilesToRemove.forEach(tile => tile.remove());
+
+                // Remove animation classes after animation completes
                 setTimeout(() => {
-                    const tiles = this.gameBoard.querySelectorAll('.tile-new');
-                    tiles.forEach(tile => tile.classList.remove('tile-new'));
+                    const tiles = this.gameBoard.querySelectorAll('.tile-new, .tile-merged');
+                    tiles.forEach(tile => {
+                        tile.classList.remove('tile-new', 'tile-merged');
+                    });
                 }, 200);
             }
 
